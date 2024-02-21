@@ -11,10 +11,10 @@ const api = axios.create({
 });
 
 const App = () => {
-  const [data, setData] = useState([]); 
+  const [data, setData] = useState([]);
 
   useEffect(() => {
-    fetchData();
+    // fetchData();
   }, []);
 
   const fetchData = async () => {
@@ -46,7 +46,8 @@ const App = () => {
       // Implement adjustment algorithm
       const adjustedData = adjustTimes(jsonData); // Implement this function
 
-      const unmodefiedData = saveToUnmodified(adjustedData);
+      const _modifyLog = modifyLog(adjustedData);
+      setData(_modifyLog);
     };
 
     reader.readAsArrayBuffer(file);
@@ -84,12 +85,11 @@ const App = () => {
           const logs = data[logsIndex];
           const datesIndex = index + 5;
           const timesIndex = index + 1;
-          // console.info(logs, datesIndex -2, timesIndex-2);
           // Check if logs exist for the employee
           if (logs && datesIndex < data.length && timesIndex < data.length) {
             const dates = data[datesIndex];
             const times = data[timesIndex];
-
+            let type = "login";
             // Loop through the dates and times to populate the logs
             for (let j = 0; j < dates.length; j++) {
               const date = dates[j];
@@ -98,45 +98,130 @@ const App = () => {
                 // Split the time into logged in and logged out times
                 const loggedTime = time.trim().split("\n");
 
-                // Add the loggedTime to the existing logs for the employee
-                const empIndex = empLog.length - 1;
-                const logsCount = Object.keys(empLog[empIndex].logs).length;
-                empLog[empIndex].logs[logsCount] = {
-                  date: formatDateString(yearMonth + "-" + date),
-                  loggedTime,
-                };
+                loggedTime.forEach((row) => {
+                  const empIndex = empLog.length - 1;
+                  const logsCount = Object.keys(empLog[empIndex].logs).length;
+                  empLog[empIndex].logs[logsCount] = {
+                    date: formatDateString(yearMonth + "-" + date),
+                    type: type,
+                    time: row,
+                  };
+                  type = type === "login" ? "logout" : "login";
+                });
               }
             }
           }
         }
       }
     });
-    console.info(empLog);
     return empLog;
   };
 
-  const saveToUnmodified = async (data) => {
-    await api
-      .post("biometric/insertToUnmodified", data)
-      .then((response) => {
-        // console.info(response.data);
+  function findLogIndex(date, type, logsArray) {
+    for (let i = 0; i < Object.keys(logsArray).length; i++) {
+      if (
+        logsArray[Object.keys(logsArray)[i]].date === date &&
+        logsArray[Object.keys(logsArray)[i]].type === type
+      ) {
+        return i; // Return the index if date and type match
+      }
+    }
+    return -1; // Return -1 if not found
+  }
 
-        fetchData();
-      })
-      .catch((error) => {
-        console.info(error);
+  const modifyLog = (data) => {
+    let empLog = [];
+    data.forEach((row, index) => {
+      const {
+        employeeDept,
+        employeeName,
+        endDate,
+        startDate,
+        employeeId,
+        logs,
+      } = row;
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      empLog.push({
+        employeeId,
+        employeeName,
+        employeeDept,
+        startDate,
+        endDate,
+        _logs: [],
       });
-  };
-  const clearTable = async () => {
-    await api
-      .post("biometric/clear_table")
-      .then((response) => {
-        console.info("table cleared");
-        fetchData();
-      })
-      .catch((error) => {
-        console.info(error);
-      });
+
+      if (Object.keys(logs).length > 0) {
+        let _startDate = new Date(startDate);
+        let _endDate = new Date(endDate);
+        while (_startDate <= _endDate) {
+          const date = _startDate.toISOString().split("T")[0];
+
+          const empIndex = empLog.length - 1;
+          const logsCount = Object.keys(empLog[empIndex]._logs).length;
+
+          empLog[empIndex]._logs[logsCount] = {
+            date: date,
+            _time: {},
+          };
+
+          let type = "login";
+          let loginTime = "";
+          let logoutTime = "";
+          for (let i = 0; i < 2; i++) {
+            const index = findLogIndex(date, type, logs);
+            if (index > -1) {
+              if (type === "login") {
+                empLog[empIndex]._logs[logsCount]._time[type] =
+                  logs[index].time; // Set initial value
+              } else {
+                empLog[empIndex]._logs[logsCount]._time[type] =
+                  logs[index].time; // Set initial value
+              }
+            } else {
+              if (type === "login") {
+                loginTime = ""; // Reset login time
+                empLog[empIndex]._logs[logsCount]._time[type] = ""; // Set initial value
+              } else {
+                logoutTime = ""; // Reset logout time
+                empLog[empIndex]._logs[logsCount]._time[type] = ""; // Set initial value
+              }
+            }
+
+            type = type === "login" ? "logout" : "login";
+          }
+          _startDate.setDate(_startDate.getDate() + 1);
+        }
+      } else {
+        for (let date = start; date <= end; date.setDate(date.getDate() + 1)) {
+          const dateString = date.toISOString().slice(0, 10);
+
+          const empIndex = empLog.length - 1;
+          const logsCount = Object.keys(empLog[empIndex]._logs).length;
+
+          empLog[empIndex]._logs[logsCount] = {
+            date: dateString,
+            _time: {},
+          };
+          let type = "login";
+          let loginTime = "";
+          let logoutTime = "";
+          for (let i = 0; i < 2; i++) {
+            if (type === "login") {
+              loginTime = ""; // Reset login time
+              empLog[empIndex]._logs[logsCount]._time[type] = ""; // Set initial value
+            } else {
+              logoutTime = ""; // Reset logout time
+              empLog[empIndex]._logs[logsCount]._time[type] = ""; // Set initial value
+            }
+
+            type = type === "login" ? "logout" : "login";
+          }
+        }
+      }
+    });
+    return empLog;
   };
 
   function formatDateString(dateString) {
@@ -154,32 +239,54 @@ const App = () => {
         <div className="my-2">
           <input type="file" onChange={handleFileUpload} accept=".xlsx, .xls" />
         </div>
-        <div className="my-2">
-          <button className="btn btn-outline-danger" onClick={clearTable}>
-            <FontAwesomeIcon icon={faTrashAlt} /> Clear Data
-          </button>
-        </div>
 
         <hr />
         {data.map((row, index) => (
           <div key={index}>
-            <h2>
-              {row.name} | {row.department}
-            </h2>
+            <p>
+              Name: {row.employeeName} <br />
+              PERIOD: {row.employeeDept} <br />
+              Official Hours: _____________
+              <br />
+            </p>
             <table>
               <tr>
-                <td>Date</td>
-                <td>Login</td>
-                <td>Logout</td>
+                <td colSpan={2}></td>
+                <td colSpan={2}>AM</td>
+                <td colSpan={2}>PM</td>
+              </tr>
+              <tr>
+                <td colSpan={2}>Date</td>
+                <td>IN</td>
+                <td>OUT</td>
+                <td>IN</td>
+                <td>OUT</td>
+                <td>HOURS</td>
+                <td>MINUTE</td>
               </tr>
               <tbody>
-                {Object.values(row.logs).map((row, index) => (
+                {Object.values(row._logs).map((row, index) => (
                   <tr key={index}>
-                    <td>{row.date}</td>
-                    <td>{row.login}</td>
-                    <td>{row.logout}</td>
+                    <td>{new Date(row.date).getDate()} </td>
+                    <td>
+                      {new Intl.DateTimeFormat("en-US", {
+                        weekday: "short",
+                      }).format(new Date(row.date))}
+                    </td>
+                    <td>{row._time.login}</td>
+                    <td> </td>
+
+                    <td>{row._time.logout}</td>
+                    <td> </td>
+                    <td> </td>
+                    <td> </td>
                   </tr>
                 ))}
+                <tr key={index}>
+                  <td colSpan={6}>Total UnderTime </td>
+                  <td></td>
+                  <td> </td>
+                </tr>
               </tbody>
             </table>
           </div>
