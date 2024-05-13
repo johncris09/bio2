@@ -1,11 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useCallback, useState } from "react";
 import * as XLSX from "xlsx";
 import axios from "axios";
 import "./fonts/Recoleta-RegularDEMO.otf";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./css/custom.css";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTrashAlt } from "@fortawesome/free-solid-svg-icons";
+import { MagnifyingGlass, Oval, RotatingLines } from "react-loader-spinner";
+
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCloudDownload } from "@fortawesome/free-solid-svg-icons";
+import { useDropzone } from "react-dropzone";
 import {
   Page,
   Text,
@@ -17,52 +21,60 @@ import {
   Line,
   Svg,
 } from "@react-pdf/renderer";
-const api = axios.create({
-  baseURL: "http://localhost/project/biometric/api/",
-});
 
+const dropzoneStyle = {
+  border: "4px dashed grey",
+  borderRadius: "10px",
+  padding: "20px",
+  textAlign: "center",
+  cursor: "pointer",
+};
 const App = () => {
   const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // fetchData();
+  const onDrop = useCallback((acceptedFiles) => {
+    setLoading(true);
+    // Check if only one file is dropped
+    if (acceptedFiles.length === 1) {
+      const file = acceptedFiles[0];
+      if (file.type !== "application/vnd.ms-excel") {
+        alert("Please upload an Excel file only.");
+      } else {
+        const reader = new FileReader();
+        // const reader = new FileReader();
+
+        reader.onload = (e) => {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+
+          // Specify the sheet name you want to read
+          const sheetName = "Attend. Logs";
+          const worksheet = workbook.Sheets[sheetName];
+
+          // Convert the selected sheet to JSON
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+          // Implement adjustment algorithm
+          const adjustedData = adjustTimes(jsonData); // Implement this function
+
+          const _modifyLog = modifyLog(adjustedData);
+          setData(_modifyLog);
+        };
+
+        reader.readAsArrayBuffer(file);
+      }
+    } else {
+      // toast.error("Please upload only one file.");
+      console.error("Please upload only one file.");
+    }
   }, []);
 
-  const fetchData = async () => {
-    await api
-      .get("biometric")
-      .then((response) => {
-        setData(response.data);
-      })
-      .catch((error) => {
-        console.info(error);
-        // toast.error(handleError(error))
-      });
-  };
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    const reader = new FileReader();
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: ".xlsx, .xls",
+  });
 
-    reader.onload = (e) => {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: "array" });
-
-      // Specify the sheet name you want to read
-      const sheetName = "bio";
-      const worksheet = workbook.Sheets[sheetName];
-
-      // Convert the selected sheet to JSON
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-      // Implement adjustment algorithm
-      const adjustedData = adjustTimes(jsonData); // Implement this function
-
-      const _modifyLog = modifyLog(adjustedData);
-      setData(_modifyLog);
-    };
-
-    reader.readAsArrayBuffer(file);
-  };
   const adjustTimes = (data) => {
     let empLog = [];
     let startDate = "";
@@ -232,6 +244,7 @@ const App = () => {
         }
       }
     });
+    setLoading(false);
     return empLog;
   };
 
@@ -398,1016 +411,1030 @@ const App = () => {
 
   return (
     <>
-      <div className="container">
-        <div className="my-2">
-          <input type="file" onChange={handleFileUpload} accept=".xlsx, .xls" />
-        </div>
-
-        <hr />
-        <PDFViewer
-          style={{
-            width: "100%",
-            height: "100vh",
-          }}
-        >
-          <Document
-            title="Daily Time Record"
-            keywords="document, pdf"
-            subject="DTR"
-            pdfVersion="1.3"
+      {loading && (
+        <>
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              backgroundColor: "rgba(0, 0, 0, 0.07)", // Adjust the background color and opacity as needed
+              zIndex: 999, // Ensure the backdrop is above other content
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
           >
-            {data.map((row, index) => (
-              <Page
-                key={index}
-                size="A4"
-                style={{
-                  ...styles.page,
-                }}
-              >
-                {/* left column */}
-                <View
-                  style={{
-                    ...styles.column,
-                    marginRight: 8,
-                  }}
-                  fixed
-                >
-                  <View style={styles.columnContent}>
-                    <Text
-                      style={{
-                        ...styles.title,
-                        textAlign: "center",
-                        marginBottom: 10,
-                      }}
-                    >
-                      DAILY TIME RECORD
-                    </Text>
-
-                    <View style={styles.userInfo} fixed>
-                      {col3.map((c, index) => (
-                        <>
-                          {c === "Field" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col1.length}%`,
-                                textAlign: "right",
-                              }}
-                            >
-                              NAME
-                            </Text>
-                          )}
-                          {c === ":" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${10 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                          {c === "Data" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${150 / col1.length}%`,
-                              }}
-                            >
-                              {row.employeeName}
-                            </Text>
-                          )}
-                        </>
-                      ))}
-                    </View>
-                    <View style={styles.userInfo} fixed>
-                      {col3.map((c, index) => (
-                        <>
-                          {c === "Field" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col1.length}%`,
-                                textAlign: "right",
-                              }}
-                            >
-                              PERIOD
-                            </Text>
-                          )}
-                          {c === ":" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${10 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                          {c === "Data" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${150 / col1.length}%`,
-                              }}
-                            >
-                              {new Date(row.startDate).toLocaleString(
-                                "default",
-                                { month: "long" }
-                              )}{" "}
-                              {("0" + new Date(row.startDate).getDate()).slice(
-                                -2
-                              )}{" "}
-                              -{" "}
-                              {("0" + new Date(row.endDate).getDate()).slice(
-                                -2
-                              )}
-                              , {new Date(row.startDate).getFullYear()}
-                            </Text>
-                          )}
-                        </>
-                      ))}
-                    </View>
-
-                    <View style={styles.userInfo} fixed>
-                      {col3.map((c, index) => (
-                        <>
-                          {c === "Field" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col1.length}%`,
-                                textAlign: "right",
-                                marginRight: 5,
-                              }}
-                            >
-                              Official Hours
-                            </Text>
-                          )}
-                          {c === ":" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${10 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                          {c === "Data" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${150 / col1.length}%`,
-                                borderBottom: "1px solid black",
-                              }}
-                            ></Text>
-                          )}
-                        </>
-                      ))}
-                    </View>
-
-                    <View
-                      style={{
-                        ...styles.tableHeader,
-                        borderTop: "0.5px",
-                        borderTopColor: "black",
-                        marginTop: 2,
-                        borderBottom: "0.5px",
-                        borderBottomColor: "black",
-                      }}
-                      fixed
-                    >
-                      {col1.map((c, index) => (
-                        <>
-                          {c === "" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${40 / col1.length}%`,
-                              }}
-                            ></Text>
-                          )}
-                          {c === "AM" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${130 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                          {c === "PM" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                          {c === "UNDERTIME" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                        </>
-                      ))}
-                    </View>
-
-                    <View style={styles.tableHeader} fixed>
-                      {col2.map((c, index) => (
-                        <>
-                          {c === "Date" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col2.length}%`,
-                              }}
-                            >
-                              Date
-                            </Text>
-                          )}
-                          {c === "IN1" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${110 / col2.length}%`,
-                                marginLeft: 12,
-                              }}
-                            >
-                              IN
-                            </Text>
-                          )}
-                          {c === "OUT1" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${110 / col2.length}%`,
-                              }}
-                            >
-                              OUT
-                            </Text>
-                          )}
-                          {c === "IN2" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${110 / col2.length}%`,
-                              }}
-                            >
-                              IN
-                            </Text>
-                          )}
-                          {c === "OUT2" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${110 / col2.length}%`,
-                              }}
-                            >
-                              OUT
-                            </Text>
-                          )}
-                          {c === "Hours" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${90 / col2.length}%`,
-                              }}
-                            >
-                              Hours
-                            </Text>
-                          )}
-                          {c === "Min" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${110 / col2.length}%`,
-                              }}
-                            >
-                              Min
-                            </Text>
-                          )}
-                        </>
-                      ))}
-                    </View>
-                    <Svg height="5" width="265">
-                      <Line
-                        x1="0"
-                        y1="5"
-                        x2="280"
-                        y2="5"
-                        strokeWidth={1}
-                        stroke="rgb(0,0,0)"
-                      />
-                    </Svg>
-                    {Object.values(row._logs).map((row, index) => (
-                      <View style={styles.tableData} fixed>
-                        {col2.map((c, rowIndex) => (
-                          <>
-                            {c === "Date" && (
-                              <Text
-                                key={rowIndex}
-                                style={{
-                                  width: `${130 / col2.length}%`,
-                                  textAlign: "left",
-                                }}
-                              >
-                                {("0" + new Date(row.date).getDate()).slice(-2)}{" "}
-                                {new Intl.DateTimeFormat("en-US", {
-                                  weekday: "short",
-                                }).format(new Date(row.date))}
-                              </Text>
-                            )}
-                            {c === "IN1" && (
-                              <Text
-                                key={rowIndex}
-                                style={{ width: `${100 / col2.length}%` }}
-                              >
-                                {row._time.login}
-                              </Text>
-                            )}
-                            {c === "OUT1" && (
-                              <Text
-                                key={rowIndex}
-                                style={{ width: `${100 / col2.length}%` }}
-                              ></Text>
-                            )}
-                            {c === "IN2" && (
-                              <Text
-                                key={rowIndex}
-                                style={{ width: `${100 / col2.length}%` }}
-                              ></Text>
-                            )}
-                            {c === "OUT2" && (
-                              <Text
-                                key={rowIndex}
-                                style={{
-                                  width: `${100 / col2.length}%`,
-                                  marginLeft: 12,
-                                }}
-                              >
-                                {row._time.logout}
-                              </Text>
-                            )}
-                            {c === "Hours" && (
-                              <Text
-                                key={rowIndex}
-                                style={{ width: `${100 / col2.length}%` }}
-                              ></Text>
-                            )}
-                            {c === "Min" && (
-                              <Text
-                                key={rowIndex}
-                                style={{ width: `${100 / col2.length}%` }}
-                              ></Text>
-                            )}
-                            {/* 
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${90 / col2.length}%`,
-                              }}
-                            >
-                              {row._time.login}
-                            </Text>
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${90 / col2.length}%`,
-                              }}
-                            >
-                              {row._time.logout}
-                            </Text> */}
-                            {/* <td>{new Date(row.date).getDate()} </td>
-                    <td>
-                      {new Intl.DateTimeFormat("en-US", {
-                        weekday: "short",
-                      }).format(new Date(row.date))}
-                    </td>
-                    <td>{row._time.login}</td>
-                    <td> </td>
-                    <td> </td>
-                    <td>{row._time.logout}</td>
-                    <td> </td>
-                    <td> </td> */}
-                          </>
-                        ))}
-                      </View>
-                    ))}
-                    <Svg height="5" width="265">
-                      <Line
-                        x1="0"
-                        y1="5"
-                        x2="280"
-                        y2="5"
-                        strokeWidth={1}
-                        stroke="rgb(0,0,0)"
-                      />
-                    </Svg>
-
-                    <Text
-                      style={{
-                        textIndent: 12,
-                        fontFamily: "Roboto Bold",
-                        fontSize: 10,
-                        marginTop: 30,
-                      }}
-                    >
-                      I certify on my honor that the above is a true and correct
-                      report of the hours of work performed, record of which was
-                      made daily at the time of arrival and departure from
-                      office.
-                    </Text>
-                    <View
-                      style={{
-                        marginTop: 40,
-                        marginBottom: 15,
-                      }}
-                    >
-                      <Svg height="5" width="265">
-                        <Line
-                          x1="0"
-                          y1="5"
-                          x2="280"
-                          y2="5"
-                          strokeWidth={1}
-                          stroke="rgb(0,0,0)"
-                        />
-                      </Svg>
-                    </View>
-
-                    <Text style={{ fontSize: 10, textAlign: "center" }}>
-                      Verified as to the prescribed office hours
-                    </Text>
-                    <Text
-                      style={{
-                        textAlign: "center",
-                        marginTop: 40,
-                        fontSize: 10,
-                        fontFamily: "Roboto Bold",
-                      }}
-                    >
-                      Elizer T. Bugas
-                    </Text>
-                    <View style={{}}>
-                      <Svg height="5" width="265">
-                        <Line
-                          x1="0"
-                          y1="5"
-                          x2="280"
-                          y2="5"
-                          strokeWidth={1}
-                          stroke="rgb(0,0,0)"
-                        />
-                      </Svg>
-                    </View>
-                    <View
-                      style={{
-                        marginTop: 40,
-                        marginBottom: 15,
-                      }}
-                    >
-                      <Svg height="5" width="265">
-                        <Line
-                          x1="0"
-                          y1="5"
-                          x2="280"
-                          y2="5"
-                          strokeWidth={1}
-                          stroke="rgb(0,0,0)"
-                        />
-                      </Svg>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Right column */}
-                <View
-                  style={{
-                    ...styles.column,
-                    marginRight: 8,
-                  }}
-                  fixed
-                >
-                  <View style={styles.columnContent}>
-                    <Text
-                      style={{
-                        ...styles.title,
-                        textAlign: "center",
-                        marginBottom: 7,
-                      }}
-                    >
-                      DAILY TIME RECORD
-                    </Text>
-
-                    <View style={styles.userInfo} fixed>
-                      {col3.map((c, index) => (
-                        <>
-                          {c === "Field" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col1.length}%`,
-                                textAlign: "left",
-                              }}
-                            >
-                              NAME
-                            </Text>
-                          )}
-                          {c === ":" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${10 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                          {c === "Data" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${150 / col1.length}%`,
-                              }}
-                            >
-                              {row.employeeName}
-                            </Text>
-                          )}
-                        </>
-                      ))}
-                    </View>
-                    <View style={styles.userInfo} fixed>
-                      {col3.map((c, index) => (
-                        <>
-                          {c === "Field" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col1.length}%`,
-                                textAlign: "left",
-                              }}
-                            >
-                              PERIOD
-                            </Text>
-                          )}
-                          {c === ":" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${10 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                          {c === "Data" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${150 / col1.length}%`,
-                              }}
-                            >
-                              {new Date(row.startDate).toLocaleString(
-                                "default",
-                                { month: "long" }
-                              )}{" "}
-                              {("0" + new Date(row.startDate).getDate()).slice(
-                                -2
-                              )}{" "}
-                              -{" "}
-                              {("0" + new Date(row.endDate).getDate()).slice(
-                                -2
-                              )}
-                              , {new Date(row.startDate).getFullYear()}
-                            </Text>
-                          )}
-                        </>
-                      ))}
-                    </View>
-
-                    <View style={styles.userInfo} fixed>
-                      {col3.map((c, index) => (
-                        <>
-                          {c === "Field" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col1.length}%`,
-                                textAlign: "left",
-                              }}
-                            >
-                              Official Hours
-                            </Text>
-                          )}
-                          {c === ":" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${10 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                          {c === "Data" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${150 / col1.length}%`,
-                                borderBottom: "1px solid black",
-                              }}
-                            ></Text>
-                          )}
-                        </>
-                      ))}
-                    </View>
-
-                    <View
-                      style={{
-                        ...styles.tableHeader,
-                        borderTop: "0.5px",
-                        borderTopColor: "black",
-                        marginTop: 2,
-                        borderBottom: "0.5px",
-                        borderBottomColor: "black",
-                      }}
-                      fixed
-                    >
-                      {col1.map((c, index) => (
-                        <>
-                          {c === "" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${40 / col1.length}%`,
-                              }}
-                            ></Text>
-                          )}
-                          {c === "AM" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${130 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                          {c === "PM" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                          {c === "UNDERTIME" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col1.length}%`,
-                              }}
-                            >
-                              {c}
-                            </Text>
-                          )}
-                        </>
-                      ))}
-                    </View>
-
-                    <View style={styles.tableHeader} fixed>
-                      {col2.map((c, index) => (
-                        <>
-                          {c === "Date" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${100 / col2.length}%`,
-                              }}
-                            >
-                              Date
-                            </Text>
-                          )}
-                          {c === "IN1" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${110 / col2.length}%`,
-                                marginLeft: 12,
-                              }}
-                            >
-                              IN
-                            </Text>
-                          )}
-                          {c === "OUT1" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${110 / col2.length}%`,
-                              }}
-                            >
-                              OUT
-                            </Text>
-                          )}
-                          {c === "IN2" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${110 / col2.length}%`,
-                              }}
-                            >
-                              IN
-                            </Text>
-                          )}
-                          {c === "OUT2" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${110 / col2.length}%`,
-                              }}
-                            >
-                              OUT
-                            </Text>
-                          )}
-                          {c === "Hours" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${90 / col2.length}%`,
-                              }}
-                            >
-                              Hours
-                            </Text>
-                          )}
-                          {c === "Min" && (
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${110 / col2.length}%`,
-                              }}
-                            >
-                              Min
-                            </Text>
-                          )}
-                        </>
-                      ))}
-                    </View>
-                    <Svg height="5" width="265">
-                      <Line
-                        x1="0"
-                        y1="5"
-                        x2="280"
-                        y2="5"
-                        strokeWidth={1}
-                        stroke="rgb(0,0,0)"
-                      />
-                    </Svg>
-                    {Object.values(row._logs).map((row, index) => (
-                      <View style={styles.tableData} fixed>
-                        {col2.map((c, rowIndex) => (
-                          <>
-                            {c === "Date" && (
-                              <Text
-                                key={rowIndex}
-                                style={{
-                                  width: `${130 / col2.length}%`,
-                                  textAlign: "left",
-                                }}
-                              >
-                                {("0" + new Date(row.date).getDate()).slice(-2)}{" "}
-                                {new Intl.DateTimeFormat("en-US", {
-                                  weekday: "short",
-                                }).format(new Date(row.date))}
-                              </Text>
-                            )}
-                            {c === "IN1" && (
-                              <Text
-                                key={rowIndex}
-                                style={{ width: `${100 / col2.length}%` }}
-                              >
-                                {row._time.login}
-                              </Text>
-                            )}
-                            {c === "OUT1" && (
-                              <Text
-                                key={rowIndex}
-                                style={{ width: `${100 / col2.length}%` }}
-                              ></Text>
-                            )}
-                            {c === "IN2" && (
-                              <Text
-                                key={rowIndex}
-                                style={{ width: `${100 / col2.length}%` }}
-                              ></Text>
-                            )}
-                            {c === "OUT2" && (
-                              <Text
-                                key={rowIndex}
-                                style={{
-                                  width: `${100 / col2.length}%`,
-                                  marginLeft: 12,
-                                }}
-                              >
-                                {row._time.logout}
-                              </Text>
-                            )}
-                            {c === "Hours" && (
-                              <Text
-                                key={rowIndex}
-                                style={{ width: `${100 / col2.length}%` }}
-                              ></Text>
-                            )}
-                            {c === "Min" && (
-                              <Text
-                                key={rowIndex}
-                                style={{ width: `${100 / col2.length}%` }}
-                              ></Text>
-                            )}
-                            {/* 
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${90 / col2.length}%`,
-                              }}
-                            >
-                              {row._time.login}
-                            </Text>
-                            <Text
-                              key={index}
-                              style={{
-                                width: `${90 / col2.length}%`,
-                              }}
-                            >
-                              {row._time.logout}
-                            </Text> */}
-                            {/* <td>{new Date(row.date).getDate()} </td>
-                    <td>
-                      {new Intl.DateTimeFormat("en-US", {
-                        weekday: "short",
-                      }).format(new Date(row.date))}
-                    </td>
-                    <td>{row._time.login}</td>
-                    <td> </td>
-                    <td> </td>
-                    <td>{row._time.logout}</td>
-                    <td> </td>
-                    <td> </td> */}
-                          </>
-                        ))}
-                      </View>
-                    ))}
-                    <Svg height="5" width="265">
-                      <Line
-                        x1="0"
-                        y1="5"
-                        x2="280"
-                        y2="5"
-                        strokeWidth={1}
-                        stroke="rgb(0,0,0)"
-                      />
-                    </Svg>
-
-                    <Text
-                      style={{
-                        textIndent: 12,
-                        fontFamily: "Roboto Bold",
-                        fontSize: 10,
-                        marginTop: 30,
-                      }}
-                    >
-                      I certify on my honor that the above is a true and correct
-                      report of the hours of work performed, record of which was
-                      made daily at the time of arrival and departure from
-                      office.
-                    </Text>
-                    <View
-                      style={{
-                        marginTop: 40,
-                        marginBottom: 15,
-                      }}
-                    >
-                      <Svg height="5" width="265">
-                        <Line
-                          x1="0"
-                          y1="5"
-                          x2="280"
-                          y2="5"
-                          strokeWidth={1}
-                          stroke="rgb(0,0,0)"
-                        />
-                      </Svg>
-                    </View>
-
-                    <Text style={{ fontSize: 10, textAlign: "center" }}>
-                      Verified as to the prescribed office hours
-                    </Text>
-                    <Text
-                      style={{
-                        textAlign: "center",
-                        marginTop: 40,
-                        fontSize: 10,
-                        fontFamily: "Roboto Bold",
-                      }}
-                    >
-                      Elizer T. Bugas
-                    </Text>
-                    <View style={{}}>
-                      <Svg height="5" width="265">
-                        <Line
-                          x1="0"
-                          y1="5"
-                          x2="280"
-                          y2="5"
-                          strokeWidth={1}
-                          stroke="rgb(0,0,0)"
-                        />
-                      </Svg>
-                    </View>
-                    <View
-                      style={{
-                        marginTop: 40,
-                        marginBottom: 15,
-                      }}
-                    >
-                      <Svg height="5" width="265">
-                        <Line
-                          x1="0"
-                          y1="5"
-                          x2="280"
-                          y2="5"
-                          strokeWidth={1}
-                          stroke="rgb(0,0,0)"
-                        />
-                      </Svg>
-                    </View>
-                  </View>
-                </View>
-              </Page>
-            ))}
-          </Document>
-        </PDFViewer>
-
-        {data.map((row, index) => (
-          <div key={index}>
-            <p>
-              Name: {row.employeeName} <br />
-              PERIOD: {row.employeeDept} <br />
-              Official Hours: _____________
-              <br />
-            </p>
-            <table>
-              <tr>
-                <td colSpan={2}></td>
-                <td colSpan={2}>AM</td>
-                <td colSpan={2}>PM</td>
-              </tr>
-              <tr>
-                <td colSpan={2}>Date</td>
-                <td>IN</td>
-                <td>OUT</td>
-                <td>IN</td>
-                <td>OUT</td>
-                <td>HOURS</td>
-                <td>MINUTE</td>
-              </tr>
-              <tbody>
-                {Object.values(row._logs).map((row, index) => (
-                  <tr key={index}>
-                    <td>{new Date(row.date).getDate()} </td>
-                    <td>
-                      {new Intl.DateTimeFormat("en-US", {
-                        weekday: "short",
-                      }).format(new Date(row.date))}
-                    </td>
-                    <td>{row._time.login}</td>
-                    <td> </td>
-                    <td> </td>
-                    <td>{row._time.logout}</td>
-                    <td> </td>
-                    <td> </td>
-                  </tr>
-                ))}
-                <tr key={index}>
-                  <td colSpan={6}>Total UnderTime </td>
-                  <td></td>
-                  <td> </td>
-                </tr>
-              </tbody>
-            </table>
+            <div>
+              <RotatingLines
+                visible={true}
+                color="#34aadc"
+                strokeWidth="5"
+                animationDuration="0.75"
+                ariaLabel="rotating-lines-loading"
+                wrapperStyle={{}}
+                wrapperClass=""
+                height={40}
+                width={40}
+                strokeWidthSecondary={2}
+              />
+              <p style={{ marginLeft: "-20px", fontSize: "16px" }}>
+                Please wait...
+              </p>
+            </div>
           </div>
-        ))}
+        </>
+      )}
+      <div className="container-fluid">
+        <div className="row">
+          <div className="col-md-4">
+            <h4> Upload the logs here.</h4>
+            <div {...getRootProps()} style={dropzoneStyle}>
+              <input
+                {...getInputProps()}
+                accept=".xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              />
+              {isDragActive ? (
+                <p>Drop the Excel file here...</p>
+              ) : (
+                <>
+                  <p>
+                    <FontAwesomeIcon
+                      icon={faCloudDownload}
+                      style={{ fontSize: 70 }}
+                    />
+                  </p>
+                  <p>
+                    {" "}
+                    Drag and drop an Excel file here, or click to select one{" "}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="col-md-8">
+            <PDFViewer
+              style={{
+                width: "100%",
+                height: "100vh",
+              }}
+            >
+              <Document
+                title="Daily Time Record"
+                keywords="document, pdf"
+                subject="DTR"
+                pdfVersion="1.3"
+              >
+                {data.map((row, index) => (
+                  <Page
+                    key={index}
+                    size="A4"
+                    style={{
+                      ...styles.page,
+                    }}
+                  >
+                    {/* left column */}
+                    <View
+                      style={{
+                        ...styles.column,
+                        marginRight: 8,
+                      }}
+                      fixed
+                    >
+                      <View style={styles.columnContent}>
+                        <Text
+                          style={{
+                            ...styles.title,
+                            textAlign: "center",
+                            marginBottom: 10,
+                          }}
+                        >
+                          DAILY TIME RECORD
+                        </Text>
+
+                        <View style={styles.userInfo} fixed>
+                          {col3.map((c, index) => (
+                            <>
+                              {c === "Field" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col1.length}%`,
+                                    textAlign: "right",
+                                  }}
+                                >
+                                  NAME
+                                </Text>
+                              )}
+                              {c === ":" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${10 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                              {c === "Data" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${150 / col1.length}%`,
+                                  }}
+                                >
+                                  {row.employeeName}
+                                </Text>
+                              )}
+                            </>
+                          ))}
+                        </View>
+                        <View style={styles.userInfo} fixed>
+                          {col3.map((c, index) => (
+                            <>
+                              {c === "Field" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col1.length}%`,
+                                    textAlign: "right",
+                                  }}
+                                >
+                                  PERIOD
+                                </Text>
+                              )}
+                              {c === ":" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${10 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                              {c === "Data" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${150 / col1.length}%`,
+                                  }}
+                                >
+                                  {new Date(row.startDate).toLocaleString(
+                                    "default",
+                                    { month: "long" }
+                                  )}{" "}
+                                  {(
+                                    "0" + new Date(row.startDate).getDate()
+                                  ).slice(-2)}{" "}
+                                  -{" "}
+                                  {(
+                                    "0" + new Date(row.endDate).getDate()
+                                  ).slice(-2)}
+                                  , {new Date(row.startDate).getFullYear()}
+                                </Text>
+                              )}
+                            </>
+                          ))}
+                        </View>
+
+                        <View style={styles.userInfo} fixed>
+                          {col3.map((c, index) => (
+                            <>
+                              {c === "Field" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col1.length}%`,
+                                    textAlign: "right",
+                                    marginRight: 5,
+                                  }}
+                                >
+                                  Official Hours
+                                </Text>
+                              )}
+                              {c === ":" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${10 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                              {c === "Data" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${150 / col1.length}%`,
+                                    borderBottom: "1px solid black",
+                                  }}
+                                ></Text>
+                              )}
+                            </>
+                          ))}
+                        </View>
+
+                        <View
+                          style={{
+                            ...styles.tableHeader,
+                            borderTop: "0.5px",
+                            borderTopColor: "black",
+                            marginTop: 2,
+                            borderBottom: "0.5px",
+                            borderBottomColor: "black",
+                          }}
+                          fixed
+                        >
+                          {col1.map((c, index) => (
+                            <>
+                              {c === "" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${40 / col1.length}%`,
+                                  }}
+                                ></Text>
+                              )}
+                              {c === "AM" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${130 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                              {c === "PM" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                              {c === "UNDERTIME" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                            </>
+                          ))}
+                        </View>
+
+                        <View style={styles.tableHeader} fixed>
+                          {col2.map((c, index) => (
+                            <>
+                              {c === "Date" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col2.length}%`,
+                                  }}
+                                >
+                                  Date
+                                </Text>
+                              )}
+                              {c === "IN1" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${110 / col2.length}%`,
+                                    marginLeft: 12,
+                                  }}
+                                >
+                                  IN
+                                </Text>
+                              )}
+                              {c === "OUT1" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${110 / col2.length}%`,
+                                  }}
+                                >
+                                  OUT
+                                </Text>
+                              )}
+                              {c === "IN2" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${110 / col2.length}%`,
+                                  }}
+                                >
+                                  IN
+                                </Text>
+                              )}
+                              {c === "OUT2" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${110 / col2.length}%`,
+                                  }}
+                                >
+                                  OUT
+                                </Text>
+                              )}
+                              {c === "Hours" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${90 / col2.length}%`,
+                                  }}
+                                >
+                                  Hours
+                                </Text>
+                              )}
+                              {c === "Min" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${110 / col2.length}%`,
+                                  }}
+                                >
+                                  Min
+                                </Text>
+                              )}
+                            </>
+                          ))}
+                        </View>
+                        <Svg height="5" width="265">
+                          <Line
+                            x1="0"
+                            y1="5"
+                            x2="280"
+                            y2="5"
+                            strokeWidth={1}
+                            stroke="rgb(0,0,0)"
+                          />
+                        </Svg>
+                        {Object.values(row._logs).map((row, index) => (
+                          <View style={styles.tableData} fixed>
+                            {col2.map((c, rowIndex) => (
+                              <>
+                                {c === "Date" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{
+                                      width: `${130 / col2.length}%`,
+                                      textAlign: "left",
+                                    }}
+                                  >
+                                    {("0" + new Date(row.date).getDate()).slice(
+                                      -2
+                                    )}{" "}
+                                    {new Intl.DateTimeFormat("en-US", {
+                                      weekday: "short",
+                                    }).format(new Date(row.date))}
+                                  </Text>
+                                )}
+                                {c === "IN1" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{ width: `${100 / col2.length}%` }}
+                                  >
+                                    {row._time.login}
+                                  </Text>
+                                )}
+                                {c === "OUT1" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{ width: `${100 / col2.length}%` }}
+                                  ></Text>
+                                )}
+                                {c === "IN2" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{ width: `${100 / col2.length}%` }}
+                                  ></Text>
+                                )}
+                                {c === "OUT2" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{
+                                      width: `${100 / col2.length}%`,
+                                      marginLeft: 12,
+                                    }}
+                                  >
+                                    {row._time.logout}
+                                  </Text>
+                                )}
+                                {c === "Hours" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{ width: `${100 / col2.length}%` }}
+                                  ></Text>
+                                )}
+                                {c === "Min" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{ width: `${100 / col2.length}%` }}
+                                  ></Text>
+                                )}
+                                {/* 
+                            <Text
+                              key={index}
+                              style={{
+                                width: `${90 / col2.length}%`,
+                              }}
+                            >
+                              {row._time.login}
+                            </Text>
+                            <Text
+                              key={index}
+                              style={{
+                                width: `${90 / col2.length}%`,
+                              }}
+                            >
+                              {row._time.logout}
+                            </Text> */}
+                                {/* <td>{new Date(row.date).getDate()} </td>
+                    <td>
+                      {new Intl.DateTimeFormat("en-US", {
+                        weekday: "short",
+                      }).format(new Date(row.date))}
+                    </td>
+                    <td>{row._time.login}</td>
+                    <td> </td>
+                    <td> </td>
+                    <td>{row._time.logout}</td>
+                    <td> </td>
+                    <td> </td> */}
+                              </>
+                            ))}
+                          </View>
+                        ))}
+                        <Svg height="5" width="265">
+                          <Line
+                            x1="0"
+                            y1="5"
+                            x2="280"
+                            y2="5"
+                            strokeWidth={1}
+                            stroke="rgb(0,0,0)"
+                          />
+                        </Svg>
+
+                        <Text
+                          style={{
+                            textIndent: 12,
+                            fontFamily: "Roboto Bold",
+                            fontSize: 10,
+                            marginTop: 30,
+                          }}
+                        >
+                          I certify on my honor that the above is a true and
+                          correct report of the hours of work performed, record
+                          of which was made daily at the time of arrival and
+                          departure from office.
+                        </Text>
+                        <View
+                          style={{
+                            marginTop: 40,
+                            marginBottom: 15,
+                          }}
+                        >
+                          <Svg height="5" width="265">
+                            <Line
+                              x1="0"
+                              y1="5"
+                              x2="280"
+                              y2="5"
+                              strokeWidth={1}
+                              stroke="rgb(0,0,0)"
+                            />
+                          </Svg>
+                        </View>
+
+                        <Text style={{ fontSize: 10, textAlign: "center" }}>
+                          Verified as to the prescribed office hours
+                        </Text>
+                        <Text
+                          style={{
+                            textAlign: "center",
+                            marginTop: 40,
+                            fontSize: 10,
+                            fontFamily: "Roboto Bold",
+                          }}
+                        >
+                          Elizer T. Bugas
+                        </Text>
+                        <View style={{}}>
+                          <Svg height="5" width="265">
+                            <Line
+                              x1="0"
+                              y1="5"
+                              x2="280"
+                              y2="5"
+                              strokeWidth={1}
+                              stroke="rgb(0,0,0)"
+                            />
+                          </Svg>
+                        </View>
+                        <View
+                          style={{
+                            marginTop: 40,
+                            marginBottom: 15,
+                          }}
+                        >
+                          <Svg height="5" width="265">
+                            <Line
+                              x1="0"
+                              y1="5"
+                              x2="280"
+                              y2="5"
+                              strokeWidth={1}
+                              stroke="rgb(0,0,0)"
+                            />
+                          </Svg>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Right column */}
+                    <View
+                      style={{
+                        ...styles.column,
+                        marginRight: 8,
+                      }}
+                      fixed
+                    >
+                      <View style={styles.columnContent}>
+                        <Text
+                          style={{
+                            ...styles.title,
+                            textAlign: "center",
+                            marginBottom: 7,
+                          }}
+                        >
+                          DAILY TIME RECORD
+                        </Text>
+
+                        <View style={styles.userInfo} fixed>
+                          {col3.map((c, index) => (
+                            <>
+                              {c === "Field" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col1.length}%`,
+                                    textAlign: "left",
+                                  }}
+                                >
+                                  NAME
+                                </Text>
+                              )}
+                              {c === ":" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${10 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                              {c === "Data" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${150 / col1.length}%`,
+                                  }}
+                                >
+                                  {row.employeeName}
+                                </Text>
+                              )}
+                            </>
+                          ))}
+                        </View>
+                        <View style={styles.userInfo} fixed>
+                          {col3.map((c, index) => (
+                            <>
+                              {c === "Field" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col1.length}%`,
+                                    textAlign: "left",
+                                  }}
+                                >
+                                  PERIOD
+                                </Text>
+                              )}
+                              {c === ":" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${10 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                              {c === "Data" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${150 / col1.length}%`,
+                                  }}
+                                >
+                                  {new Date(row.startDate).toLocaleString(
+                                    "default",
+                                    { month: "long" }
+                                  )}{" "}
+                                  {(
+                                    "0" + new Date(row.startDate).getDate()
+                                  ).slice(-2)}{" "}
+                                  -{" "}
+                                  {(
+                                    "0" + new Date(row.endDate).getDate()
+                                  ).slice(-2)}
+                                  , {new Date(row.startDate).getFullYear()}
+                                </Text>
+                              )}
+                            </>
+                          ))}
+                        </View>
+
+                        <View style={styles.userInfo} fixed>
+                          {col3.map((c, index) => (
+                            <>
+                              {c === "Field" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col1.length}%`,
+                                    textAlign: "left",
+                                  }}
+                                >
+                                  Official Hours
+                                </Text>
+                              )}
+                              {c === ":" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${10 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                              {c === "Data" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${150 / col1.length}%`,
+                                    borderBottom: "1px solid black",
+                                  }}
+                                ></Text>
+                              )}
+                            </>
+                          ))}
+                        </View>
+
+                        <View
+                          style={{
+                            ...styles.tableHeader,
+                            borderTop: "0.5px",
+                            borderTopColor: "black",
+                            marginTop: 2,
+                            borderBottom: "0.5px",
+                            borderBottomColor: "black",
+                          }}
+                          fixed
+                        >
+                          {col1.map((c, index) => (
+                            <>
+                              {c === "" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${40 / col1.length}%`,
+                                  }}
+                                ></Text>
+                              )}
+                              {c === "AM" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${130 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                              {c === "PM" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                              {c === "UNDERTIME" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col1.length}%`,
+                                  }}
+                                >
+                                  {c}
+                                </Text>
+                              )}
+                            </>
+                          ))}
+                        </View>
+
+                        <View style={styles.tableHeader} fixed>
+                          {col2.map((c, index) => (
+                            <>
+                              {c === "Date" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${100 / col2.length}%`,
+                                  }}
+                                >
+                                  Date
+                                </Text>
+                              )}
+                              {c === "IN1" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${110 / col2.length}%`,
+                                    marginLeft: 12,
+                                  }}
+                                >
+                                  IN
+                                </Text>
+                              )}
+                              {c === "OUT1" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${110 / col2.length}%`,
+                                  }}
+                                >
+                                  OUT
+                                </Text>
+                              )}
+                              {c === "IN2" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${110 / col2.length}%`,
+                                  }}
+                                >
+                                  IN
+                                </Text>
+                              )}
+                              {c === "OUT2" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${110 / col2.length}%`,
+                                  }}
+                                >
+                                  OUT
+                                </Text>
+                              )}
+                              {c === "Hours" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${90 / col2.length}%`,
+                                  }}
+                                >
+                                  Hours
+                                </Text>
+                              )}
+                              {c === "Min" && (
+                                <Text
+                                  key={index}
+                                  style={{
+                                    width: `${110 / col2.length}%`,
+                                  }}
+                                >
+                                  Min
+                                </Text>
+                              )}
+                            </>
+                          ))}
+                        </View>
+                        <Svg height="5" width="265">
+                          <Line
+                            x1="0"
+                            y1="5"
+                            x2="280"
+                            y2="5"
+                            strokeWidth={1}
+                            stroke="rgb(0,0,0)"
+                          />
+                        </Svg>
+                        {Object.values(row._logs).map((row, index) => (
+                          <View style={styles.tableData} fixed>
+                            {col2.map((c, rowIndex) => (
+                              <>
+                                {c === "Date" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{
+                                      width: `${130 / col2.length}%`,
+                                      textAlign: "left",
+                                    }}
+                                  >
+                                    {("0" + new Date(row.date).getDate()).slice(
+                                      -2
+                                    )}{" "}
+                                    {new Intl.DateTimeFormat("en-US", {
+                                      weekday: "short",
+                                    }).format(new Date(row.date))}
+                                  </Text>
+                                )}
+                                {c === "IN1" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{ width: `${100 / col2.length}%` }}
+                                  >
+                                    {row._time.login}
+                                  </Text>
+                                )}
+                                {c === "OUT1" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{ width: `${100 / col2.length}%` }}
+                                  ></Text>
+                                )}
+                                {c === "IN2" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{ width: `${100 / col2.length}%` }}
+                                  ></Text>
+                                )}
+                                {c === "OUT2" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{
+                                      width: `${100 / col2.length}%`,
+                                      marginLeft: 12,
+                                    }}
+                                  >
+                                    {row._time.logout}
+                                  </Text>
+                                )}
+                                {c === "Hours" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{ width: `${100 / col2.length}%` }}
+                                  ></Text>
+                                )}
+                                {c === "Min" && (
+                                  <Text
+                                    key={rowIndex}
+                                    style={{ width: `${100 / col2.length}%` }}
+                                  ></Text>
+                                )}
+                                {/* 
+                            <Text
+                              key={index}
+                              style={{
+                                width: `${90 / col2.length}%`,
+                              }}
+                            >
+                              {row._time.login}
+                            </Text>
+                            <Text
+                              key={index}
+                              style={{
+                                width: `${90 / col2.length}%`,
+                              }}
+                            >
+                              {row._time.logout}
+                            </Text> */}
+                                {/* <td>{new Date(row.date).getDate()} </td>
+                    <td>
+                      {new Intl.DateTimeFormat("en-US", {
+                        weekday: "short",
+                      }).format(new Date(row.date))}
+                    </td>
+                    <td>{row._time.login}</td>
+                    <td> </td>
+                    <td> </td>
+                    <td>{row._time.logout}</td>
+                    <td> </td>
+                    <td> </td> */}
+                              </>
+                            ))}
+                          </View>
+                        ))}
+                        <Svg height="5" width="265">
+                          <Line
+                            x1="0"
+                            y1="5"
+                            x2="280"
+                            y2="5"
+                            strokeWidth={1}
+                            stroke="rgb(0,0,0)"
+                          />
+                        </Svg>
+
+                        <Text
+                          style={{
+                            textIndent: 12,
+                            fontFamily: "Roboto Bold",
+                            fontSize: 10,
+                            marginTop: 30,
+                          }}
+                        >
+                          I certify on my honor that the above is a true and
+                          correct report of the hours of work performed, record
+                          of which was made daily at the time of arrival and
+                          departure from office.
+                        </Text>
+                        <View
+                          style={{
+                            marginTop: 40,
+                            marginBottom: 15,
+                          }}
+                        >
+                          <Svg height="5" width="265">
+                            <Line
+                              x1="0"
+                              y1="5"
+                              x2="280"
+                              y2="5"
+                              strokeWidth={1}
+                              stroke="rgb(0,0,0)"
+                            />
+                          </Svg>
+                        </View>
+
+                        <Text style={{ fontSize: 10, textAlign: "center" }}>
+                          Verified as to the prescribed office hours
+                        </Text>
+                        <Text
+                          style={{
+                            textAlign: "center",
+                            marginTop: 40,
+                            fontSize: 10,
+                            fontFamily: "Roboto Bold",
+                          }}
+                        >
+                          Elizer T. Bugas
+                        </Text>
+                        <View style={{}}>
+                          <Svg height="5" width="265">
+                            <Line
+                              x1="0"
+                              y1="5"
+                              x2="280"
+                              y2="5"
+                              strokeWidth={1}
+                              stroke="rgb(0,0,0)"
+                            />
+                          </Svg>
+                        </View>
+                        <View
+                          style={{
+                            marginTop: 40,
+                            marginBottom: 15,
+                          }}
+                        >
+                          <Svg height="5" width="265">
+                            <Line
+                              x1="0"
+                              y1="5"
+                              x2="280"
+                              y2="5"
+                              strokeWidth={1}
+                              stroke="rgb(0,0,0)"
+                            />
+                          </Svg>
+                        </View>
+                      </View>
+                    </View>
+                  </Page>
+                ))}
+              </Document>
+            </PDFViewer>
+          </div>
+        </div>
       </div>
     </>
   );
